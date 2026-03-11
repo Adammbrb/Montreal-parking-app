@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Montreal Parking App</title>
+  <style>
+    * { box-sizing: border-box; font-family: Arial, sans-serif; }
+    body {
+      margin: 0;
+      background: #f3f4f6;
+      color: #111827;
+    }
+    .app {
+      max-width: 430px;
+      margin: 0 auto;
+      min-height: 100vh;
+      background: white;
+      border-left: 1px solid #ddd;
+      border-right: 1px solid #ddd;
+    }
+    .header {
+      background: #0f172a;
+      color: white;
+      padding: 18px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 22px;
+    }
+    .header p {
+      margin: 6px 0 0;
+      font-size: 14px;
+      opacity: 0.85;
+    }
+    .search {
+      padding: 14px;
+      border-bottom: 1px solid #e5e7eb;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .chip {
+      background: #e5e7eb;
+      border: none;
+      border-radius: 999px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .chip.active {
+      background: #16a34a;
+      color: white;
+    }
+    .map {
+      position: relative;
+      height: 340px;
+      background: linear-gradient(180deg, #dbeafe, #bfdbfe);
+      overflow: hidden;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .road {
+      position: absolute;
+      background: rgba(255,255,255,0.8);
+    }
+    .road.h1 { top: 80px; left: 0; right: 0; height: 10px; }
+    .road.h2 { top: 180px; left: 0; right: 0; height: 10px; }
+    .road.v1 { top: 0; bottom: 0; left: 110px; width: 10px; }
+    .road.v2 { top: 0; bottom: 0; right: 110px; width: 10px; }
+
+    .pin {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid white;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    .free { background: #16a34a; }
+    .paid { background: #f59e0b; }
+    .full { background: #ef4444; }
+
+    .legend {
+      display: flex;
+      gap: 12px;
+      padding: 12px 14px;
+      font-size: 13px;
+      border-bottom: 1px solid #e5e7eb;
+      flex-wrap: wrap;
+    }
+    .legend span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .cards {
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+    .card {
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+    }
+    .meta {
+      font-size: 14px;
+      color: #4b5563;
+      line-height: 1.5;
+    }
+    .tag {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .tag.free { color: white; }
+    .tag.paid { color: white; }
+    .tag.full { color: white; }
+    .footer {
+      padding: 14px;
+      font-size: 12px;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <h1>Montreal Parking</h1>
+      <p>Find free and available parking spots nearby</p>
+    </div>
+
+    <div class="search">
+      <button class="chip active" onclick="setFilter('all', this)">All spots</button>
+      <button class="chip" onclick="setFilter('free', this)">Free now</button>
+      <button class="chip" onclick="setFilter('paid', this)">Paid</button>
+      <button class="chip" onclick="setFilter('full', this)">Full</button>
+    </div>
+
+    <div class="map" id="map">
+      <div class="road h1"></div>
+      <div class="road h2"></div>
+      <div class="road v1"></div>
+      <div class="road v2"></div>
+    </div>
+
+    <div class="legend">
+      <span><i class="dot" style="background:#16a34a;"></i> Free now</span>
+      <span><i class="dot" style="background:#f59e0b;"></i> Paid available</span>
+      <span><i class="dot" style="background:#ef4444;"></i> Full</span>
+    </div>
+
+    <div class="cards" id="cards"></div>
+
+    <div class="footer">
+      Demo version for Montreal parking discovery.
+    </div>
+  </div>
+
+  <script>
+    const spots = [
+      { id: 1, name: "Rue Sainte-Catherine O", type: "free", x: 70, y: 60, price: "$0", note: "Free after 6 PM", walk: "4 min walk" },
+      { id: 2, name: "Avenue du Parc", type: "paid", x: 180, y: 100, price: "$3.50/hr", note: "Available now", walk: "3 min walk" },
+      { id: 3, name: "Boulevard René-Lévesque", type: "full", x: 290, y: 60, price: "$4.00/hr", note: "Currently full", walk: "2 min walk" },
+      { id: 4, name: "Rue Sherbrooke", type: "free", x: 90, y: 210, price: "$0", note: "No permit required", walk: "6 min walk" },
+      { id: 5, name: "Saint-Laurent", type: "paid", x: 210, y: 220, price: "$2.75/hr", note: "Available now", walk: "5 min walk" },
+      { id: 6, name: "Old Montreal", type: "free", x: 310, y: 210, price: "$0", note: "Free tonight", walk: "7 min walk" }
+    ];
+
+    let currentFilter = "all";
+
+    function render() {
+      const map = document.getElementById("map");
+      const cards = document.getElementById("cards");
+
+      map.querySelectorAll(".pin").forEach(pin => pin.remove());
+      cards.innerHTML = "";
+
+      const filtered = spots.filter(spot => currentFilter === "all" ? true : spot.type === currentFilter);
+
+      filtered.forEach(spot => {
+        const pin = document.createElement("div");
+        pin.className = `pin ${spot.type}`;
+        pin.style.left = spot.x + "px";
+        pin.style.top = spot.y + "px";
+        pin.title = spot.name;
+        map.appendChild(pin);
+
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <h3>${spot.name}</h3>
+          <div class="meta">
+            Price: ${spot.price}<br>
+            Status: ${spot.note}<br>
+            Distance: ${spot.walk}
+          </div>
+          <span class="tag ${spot.type}">${spot.type.toUpperCase()}</span>
+        `;
+        cards.appendChild(card);
+      });
+    }
+
+    function setFilter(filter, button) {
+      currentFilter = filter;
+      document.querySelectorAll(".chip").forEach(btn => btn.classList.remove("active"));
+      button.classList.add("active");
+      render();
+    }
+
+    render();
+  </script>
+</body>
+</html>
